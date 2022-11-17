@@ -1,5 +1,4 @@
 public class PriorityPointsClass {
-     //Add priority points to new accounts
     public static void AddPriorityPointsToNewAccounts(){
         List<Account> AccToUpdate1 = new List<Account>();
         
@@ -8,9 +7,11 @@ public class PriorityPointsClass {
                                  Website,Winter_show_priority_points__c 
                                  FROM 
                                  Account 
-                                 Where 
+                                 WHERE 
                                  Winter_show_priority_points__c = null
-                                 AND Id = '0017j00000pvxs5AAA']; 
+                                 OR
+                                 Winter_show_priority_points__c = 0
+                                 ]; 
         for(Account acc1 : accList1){
             acc1.Winter_show_priority_points__c = 46;
             acc1.Recipe__c = 'AddPriorityPointsToNewAccounts';
@@ -25,9 +26,11 @@ public class PriorityPointsClass {
                                  Website,Winter_show_priority_points__c 
                                  FROM 
                                  Account 
-                                 WhERE 
+                                 WHERE 
                                  Summer_show_priority_points__c = null
-                                 AND Id = '0017j00000pvxs5AAA'];
+                                 OR
+                                 Summer_show_priority_points__c = 0
+                                 ];
         for(Account acc2 : accList2 ){
             acc2.Summer_show_priority_points__c = 66;
             acc2.Recipe__c = 'AddPriorityPointsToNewAccounts';
@@ -37,8 +40,7 @@ public class PriorityPointsClass {
         update AccToUpdate2;
     }
         
-        public static void IncreaseOrDecreasePriorityPoints(){
-        //Increase or decrease priority points based on the last years event action
+       /* public static void IncreaseOrDecreasePriorityPoints(){
             List<Action__c> ParticipatedList = [SELECT Id, 
                                                Name, 
                                                Account__c 
@@ -71,9 +73,7 @@ public class PriorityPointsClass {
             //string accid = acc.ID_18_digits__c;
            // Boolean isAccountParticipated = !allAccounts.contains(accid);
               Decimal i = acc.Winter_show_priority_points__c;
-            if(ParticipatedAccIds.contains(acc.Id)){
-                acc.Winter_show_priority_points__c = i-1;
-            }
+            
             if(!ParticipatedAccIds.contains(acc.Id)){
                 acc.Winter_show_priority_points__c = i+1;
             }
@@ -82,7 +82,7 @@ public class PriorityPointsClass {
             system.debug(allAccounts.size());
             update allAccounts;
         
-    }
+    }*/
     
     
 }
