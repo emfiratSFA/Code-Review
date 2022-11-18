@@ -1,25 +1,39 @@
 public class PriorityPointsClass {
     public static void AddPriorityPointsToNewAccounts(){
-        List<Account> AccToUpdate1 = new List<Account>();
-        
+        //List<Account> AccToUpdate1 = new List<Account>();
+        try{
         List<Account> accList1 = [SELECT Id, 
                                  Name,
-                                 Website,Winter_show_priority_points__c 
+                                 Website,Winter_show_priority_points__c, Summer_show_priority_points__c
                                  FROM 
                                  Account 
                                  WHERE 
-                                 Winter_show_priority_points__c = null
+                                 (Winter_show_priority_points__c = null
                                  OR
-                                 Winter_show_priority_points__c = 0
+                                 Winter_show_priority_points__c = 0)
+                                  OR(Summer_show_priority_points__c = null
+                                 OR
+                                 Summer_show_priority_points__c = 0) LIMIT 200
                                  ]; 
         for(Account acc1 : accList1){
-            acc1.Winter_show_priority_points__c = 46;
-            acc1.Recipe__c = 'AddPriorityPointsToNewAccounts';
-            AccToUpdate1.add(acc1);
+            if(acc1.Winter_show_priority_points__c == null || acc1.Winter_show_priority_points__c == 0){
+                acc1.Winter_show_priority_points__c = 46;
+                acc1.Recipe__c = 'AddPriorityPointsToNewAccounts';
+                //AccToUpdate1.add(acc1);
+            }
+            if(acc1.Summer_show_priority_points__c == null || acc1.Summer_show_priority_points__c == 0){
+                acc1.Summer_show_priority_points__c = 66;
+                acc1.Recipe__c = 'AddPriorityPointsToNewAccounts';
+            } 
         }
-        update AccToUpdate1;
-        system.debug('the size of this list is' + AccToUpdate1.size());
-        
+        system.debug('the size of this list is' + accList1.size());
+        Database.SaveResult[] accUpdate = Database.update(accList1,false);
+        }
+        catch(Exception ex){
+            System.debug('Error Message>>>' + ex.getMessage());
+            System.debug('Error at >>>' + ex.getStackTraceString());
+        }
+        /*
         List<Account> AccToUpdate2 = new List<Account>();
         List<Account> accList2 = [SELECT Id, 
                                  Name,
@@ -37,7 +51,7 @@ public class PriorityPointsClass {
             AccToUpdate2.add(acc2);
             
         }
-        update AccToUpdate2;
+        update AccToUpdate2;*/
     }
         
        /* public static void IncreaseOrDecreasePriorityPoints(){
