@@ -2,65 +2,115 @@ public class MemberhipFixServiceClass {
     Public static Void CreateMembershiplog(){
         Set<Id> invIds= new Set<Id>();
         set<Id> accIds=new set<Id>();
-        for(line_item__c lt:[select product__r.name,Invoice__c from Line_item__c where product__r.name='General - End of Year Membership'])
+        set<id> mbrIds = new set<id>();
+        set<id> excludeMbrIds = new set<id>();
+        set<Id> accIds2022=new set<Id>();
+        set<Id> accIds2023=new set<Id>();
+        
+        for(line_item__c lt:[select product__r.name,Invoice__c from Line_item__c WHERE
+                                                                               (product__r.name='General - End of Year Membership'
+                                                                               OR product__r.name='Alliance - End of Year Membership'
+                                                                               OR product__r.name='General - Reinstatement Out Year'
+                                                                               OR product__r.name='Alliance - Reinstatement Out Year')
+                                                                               AND Invoice__r.status__c = 'paid'
+                                                                               AND Invoice__r.Account__r.Member_2__c = 'No'
+                                                                               LIMIT 1])
         {
             invIds.add(lt.Invoice__c); 
         }
-        for(invoice__c inv: [select account__c, Id from invoice__c where Status__c = 'Paid' AND  Id IN:invIds])
+        
+        for(invoice__c inv: [select account__c, Id,Created_At_UTC__c,Status__c from invoice__c where Id IN:invIds])
         {
+           // Integer dt = inv.Created_At_UTC__c.year();
+            if(inv.status__c == 'paid' && inv.Created_At_UTC__c.year() == 2022)
             accIds.add(inv.account__c);
+           //System.debug(dt);
         }
         system.debug('total accounts are : '+accIds.size());
         system.debug(accIds);
         
-        List<membership_log__c> mbrlist2 = [SELECT ID , NAME from membership_log__c where Start_Year__c  = 2022 AND Account__c in : accIds];
-        system.debug(mbrlist2);
         
-        List<membership_log__c> mbrlist3 = [SELECT ID , NAME from membership_log__c where Start_Year__c  = 2023 AND Account__c in : accIds];
-        system.debug(mbrlist3);
+        for(membership_log__c mbr3 : [SELECT ID, Name, Account__c, Account__r.id From membership_log__c WHERE Account__c IN :accIds  ]) {
+            mbrIds.add(mbr3.Account__c);
+            
+        }
+        System.debug(mbrIds);
+        List<Account> mbrAccList2 = [SELECT ID, Name From Account  WHERE Id IN :accIds  ];
         
-        List<membership_log__c>mbrList=new List<membership_log__c>();
+        /*if(mbrAccList.size() == 0) {*/
+            for(Account acc2 : mbrAccList2 ) {
+                if(!mbrIds.contains(acc2.id))
+                {
+             accIds2022.add(acc2.id);  
+             accIds2023.add(acc2.id);  
+                    }
+             
+           /* }*/
+            
+        }
+       // System.debug( 'mbrAcList ' + mbrAccList);
+        System.debug( 'mbrAcList ' + mbrAccList2);
+        
+       // add contains logic to capture 2022 and 2023 membership log ids and if no id in the list then do logic
+       for(membership_log__c mbr2 :   [SELECT ID , NAME, Account__c, Start_Year__c  FROM membership_log__c WHERE /*Account__r.Member_2__c = 'Yes' AND */Account__c in : accIds]) {
+          if(mbr2.Start_Year__c == 2022 ) {
+               excludeMbrIds.add(mbr2.Account__c);
+           }
+          if(mbr2.Start_Year__c == 2023) {
+             excludeMbrIds.add(mbr2.Account__c);
+            }
+            
+        }
+       system.debug(' dont do' + excludeMbrIds);
+        
+       // List<membership_log__c> mbrlist3 = [SELECT ID , NAME from membership_log__c where Start_Year__c  = 2023 AND Account__c in : accIds];
+       // system.debug('2023 member list ' + mbrlist2);
+        
+        List<membership_log__c>mbrList2022=new List<membership_log__c>();
+        List<membership_log__c>mbrList2023=new List<membership_log__c>();
         
         
-        for(account acc : [Select Id, name, Company_ID__c,Membership_Type__c  from Account where Id IN : accIds])
+        for(Account acc : [Select Id, Name, Company_ID__c from Account where Id IN : accIds2022])
         {
-            
-            
-            
-            
-            if(mbrlist2.size()==0){
+            if(!excludeMbrIds.contains(acc.id)) {
                 membership_log__c mbr1= new membership_log__c();
-                mbr1.account__c=acc.Id;
+                mbr1.account__c = acc.Id;
                 //mbr1.Type__c=acc.Membership_Type__c;
                 mbr1.Start_Date__c = Date.newInstance(2022,1,1);
                 mbr1.End_date__c = Date.newInstance(2022,12,31);
                 mbr1.Joined__c =   date.today();
                 mbr1.Name = 'mbr-' + acc.Company_ID__c + '-' + '2022'  ; 
-                mbrList.add(mbr1); 
-            }
-            if(mbrlist2.size()==0){
+                mbrList2022.add(mbr1); 
+          
             
+            }     
+        }
+        for(Account acc1 : [Select Id, Name, Company_ID__c from Account where Id IN : accIds2023]) {
+            if(!excludeMbrIds.contains(acc1.id)) {
             membership_log__c mbr2= new membership_log__c();
             
-            mbr2.account__c=acc.Id;
+            mbr2.account__c=acc1.Id;
             //mbr2.Type__c=acc.Membership_Type__c;
             mbr2.Start_Date__c = Date.newInstance(2023,1,1);
             mbr2.End_date__c = Date.newInstance(2023,12,31);
             mbr2.Joined__c =   date.today();
-            mbr2.Name = 'mbr-' + acc.Company_ID__c + '-' + '2023' ;
-            
-            
-            
-            
-            mbrList.add(mbr2);   
+            mbr2.Name = 'mbr-' + acc1.Company_ID__c + '-' + '2023' ;
+            mbrList2023.add(mbr2);   
                 }
         }
-        System.debug(mbrList);
+       
     
     
     
     
-    insert mbrList;
+    upsert mbrList2022;
+    upsert mbrList2023;
+        system.debug('2022 list' + mbrList2022);
+        system.debug('2023 list' + mbrList2023);
+        system.debug('accid2022' + accIds2022);
+        system.debug('accid2023' + accIds2023);
+        
+        
     
       
 }
