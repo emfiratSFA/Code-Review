@@ -1,0 +1,88 @@
+public class InvoiceTriggerHandler {
+    public static void createMembershipLogForPaidSubscriptions(List<Invoice__c> invoiceList) { 
+        
+        Date today = date.today();
+        
+        Set<Id> accIds = new Set<Id>();
+        Set<Id> invIds = new Set<Id>();
+        Map<Id,Date>  mapEndDate = new Map<Id,Date>();
+        Map<Id,Date>  invoiceDeliveryDate = new Map<Id,Date>();
+        Map<Id,String> AcctoProduct = new Map<Id,String>();
+        Map<Id,Id> accToInv = new Map<Id,Id>();
+        Set<Id> excludeInvIds = new set <Id>();
+        
+        
+        
+        
+        
+        for(line_item__c lt:[SELECT id, Invoice__c, invoice__r.Account__c, Invoice__r.status__c, 
+                             Invoice__r.Delivery_Start_Date__c, product__r.name
+                             FROM Line_item__c 
+                             WHERE
+                             Subscription_Product__c = True
+                             AND Invoice__r.status__c = 'paid'
+                             
+                             AND Invoice__c IN : invoiceList
+                            ]) {
+                                accIds.add(lt.invoice__r.Account__c);
+                                invIds.add(lt.invoice__c); 
+                                accToInv.put(lt.invoice__r.Account__c, lt.Invoice__c);
+                                invoiceDeliveryDate.put(lt.invoice__r.Account__c,lt.Invoice__r.Delivery_Start_Date__c );
+                                AcctoProduct.put(lt.invoice__r.Account__c, lt.product__r.Name);
+                            }
+        System.debug('accIds' + accIds);
+        System.debug('invIds' + invIds);
+        System.debug('mapEndDate' + mapEndDate);
+        system.debug('invoicedeliverydate' + invoiceDeliveryDate);
+        
+        for(membership_log__c mbr : [SELECT Id, Name, End_Date__c, Invoice__c, Account__c FROM Membership_Log__c WHERE Account__c IN : accIds ]) {
+            mapEndDate.put(mbr.Account__c, mbr.End_Date__c);
+            system.debug('mapAccount' + mbr.account__c);
+            system.debug('mapDate' + mbr.End_Date__c);
+        }
+        
+        System.debug('accToInv' + accToInv);
+        
+        List<Membership_log__c> mbrList = new List<Membership_log__c>();
+        
+        System.debug('mbrList' + mbrList);
+        
+        for(Account acc : [SELECT Id,Name,Company_ID__c FROM Account Where Id IN : accIds ]) {
+            if(mapEndDate.get(acc.id) < Date.today() || mapEndDate.isEmpty()  ) {
+                
+                membership_log__c mbr2 = new membership_log__c();
+                
+                mbr2.account__c = acc.id;
+                mbr2.Name = 'Mbr-'+acc.Company_ID__c + '-' + invoiceDeliveryDate.get(acc.id).Year() ;
+                mbr2.Invoice__c = accToInv.get(acc.id);
+                mbr2.Joined__c = invoiceDeliveryDate.get(acc.id);
+                mbr2.Start_Date__c = today;
+                mbr2.End_Date__c = today.addDays(364);
+                mbr2.Subscription__c = True ;
+                if(AcctoProduct.get(acc.id) == 'General Membership Subscription' 
+                   || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription' ) {
+                       mbr2.Membership_Journey__c = 'New membership';
+                   }
+                else if(AcctoProduct.get(acc.id) == 'General Membership Subscription Reinstatement' 
+                        || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription Reinstatement') {
+                            mbr2.Membership_Journey__c = 'Reinstated Membership';
+                        }
+                else if(AcctoProduct.get(acc.id) == 'General Membership Subscription Renewal' 
+                        || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription Renewal') {
+                            mbr2.Membership_Journey__c = 'Renewed Membership';
+                        }
+                
+                mbrList.add(mbr2);
+            }
+        }
+        
+        upsert mbrList;
+        
+        
+        System.debug('accIds' + accIds);
+        System.debug('invIds' + invIds);
+        System.debug('mapEndDate' + mapEndDate);
+        System.debug('accToInv' + accToInv);
+        
+    }  
+}
