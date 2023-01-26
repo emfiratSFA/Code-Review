@@ -1,1 +1,50 @@
-//test//
+trigger AccountMergeValidationTrigger on Account (before delete) {
+    set<id> accIds = new set<id>();
+    Map<Id,Boolean> accIdToIinvoice=new Map<Id,Boolean>();
+    System.debug(accIdToIinvoice);
+    // Kkey:id, Value: boollean,  MAmpa<Sstring, Account> ->. key string  value Aaccount obj
+    //to get the value frm the map:; map.get(key)
+    //
+    for(Account acc:Trigger.old)
+    {
+        accIds.add(acc.id);
+        if(acc.Member_2__c=='Yes')
+        {
+            acc.addError('Account Deletion / Merge is not allowed if the Account to be deleted is a member');  
+        }
+    }
+    List<Invoice__c> invList=[Select Id,Account__c,Sales_Rep__c, Invoiced_com_ID__c,Invoiced_com_ID_Formula_Display__c, Status__c, Source_System__c from  Invoice__c where Account__c IN:accIds];
+    system.debug('invouce is'+invList);
+    for(Invoice__c inv:invList)
+    {
+        if(inv.Invoiced_com_ID_Formula_Display__c!=null && inv.Status__c != 'Cancelled' || inv.Source_System__c != 'NetForum'  )
+           
+            
+        
+        {
+            system.debug('inside the if');
+            if( accIdToIinvoice.get(inv.Account__c)!=true)// condition to check if we already have invoice for account where invoiced com Iid is not null
+            {
+                system.debug('inside 2nd if');
+                accIdToIinvoice.put(inv.Account__c, true);
+            }
+        }
+            
+    }
+    for(Account acc:Trigger.old)
+    {
+        if(accIdToIinvoice.get(acc.Id)==true)
+        {
+            acc.addError('Account Deletion / Merge is not allowed if there is a related invoice with an Invoiced.com ID');          
+        }
+    }
+    /* for(Account acc:Trigger.old)
+{
+accIds.add(acc.id);
+if(acc.Invoiced_com_ID__c!=null)
+{
+acc.addError('Account Deletion / Merge is not allowed if the Account has a invoice.com ID'); 
+
+}
+}*/
+}
