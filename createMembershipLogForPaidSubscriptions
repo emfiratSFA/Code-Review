@@ -1,5 +1,5 @@
 public class InvoiceTriggerHandler {
-    public static void createMembershipLogForPaidSubscriptions(List<Invoice__c> invoiceList) { 
+    public static void createMembershipLogForPaidSubscriptions(List<Invoice__c> invoiceList, Map<id,Invoice__c> invoiceOldMap) { 
         
         Date today = date.today();
         
@@ -10,17 +10,18 @@ public class InvoiceTriggerHandler {
         Map<Id,String> AcctoProduct = new Map<Id,String>();
         Map<Id,Id> accToInv = new Map<Id,Id>();
         Set<Id> excludeInvIds = new set <Id>();
+        Map<id,Boolean> invPaidUpdateCheckMap = new Map<id,Boolean>();
         
         
         
         
         
         for(line_item__c lt:[SELECT id, Invoice__c, invoice__r.Account__c, Invoice__r.status__c, 
-                             Invoice__r.Delivery_Start_Date__c, product__r.name
+                             Invoice__r.Delivery_Start_Date__c, product__r.name, product__r.subscription__c
                              FROM Line_item__c 
                              WHERE
-                             Subscription_Product__c = True
-                             AND Invoice__r.status__c = 'paid'
+                             product__r.subscription__c = True
+                             //AND Invoice__r.status__c = 'Paid'
                              
                              AND Invoice__c IN : invoiceList
                             ]) {
@@ -29,12 +30,20 @@ public class InvoiceTriggerHandler {
                                 accToInv.put(lt.invoice__r.Account__c, lt.Invoice__c);
                                 invoiceDeliveryDate.put(lt.invoice__r.Account__c,lt.Invoice__r.Delivery_Start_Date__c );
                                 AcctoProduct.put(lt.invoice__r.Account__c, lt.product__r.Name);
+                                system.debug('old map invpice status' +invoiceOldMap.get(lt.invoice__c).status__c);
+                              if(invoiceOldMap.get(lt.invoice__c).status__c != 'Paid' && lt.invoice__r.Status__c == 'Paid' ) {
+                                    invPaidUpdateCheckMap.put(lt.invoice__r.Account__c, True);
+                                    
+        
+                                }
+                                
+        system.debug('invoice id' +lt.invoice__c);
                             }
         System.debug('accIds' + accIds);
         System.debug('invIds' + invIds);
         System.debug('mapEndDate' + mapEndDate);
         system.debug('invoicedeliverydate' + invoiceDeliveryDate);
-        
+        system.debug('before membership loop');        
         for(membership_log__c mbr : [SELECT Id, Name, End_Date__c, Invoice__c, Account__c FROM Membership_Log__c WHERE Account__c IN : accIds ]) {
             mapEndDate.put(mbr.Account__c, mbr.End_Date__c);
             system.debug('mapAccount' + mbr.account__c);
@@ -46,14 +55,19 @@ public class InvoiceTriggerHandler {
         List<Membership_log__c> mbrList = new List<Membership_log__c>();
         
         System.debug('mbrList' + mbrList);
-        
+        system.debug('before account loop');
         for(Account acc : [SELECT Id,Name,Company_ID__c FROM Account Where Id IN : accIds ]) {
-            if(mapEndDate.get(acc.id) < Date.today() || mapEndDate.isEmpty()  ) {
+            system.debug('after account loop 1');
+            if(invPaidUpdateCheckMap.get(acc.id) == True && (mapEndDate.get(acc.id) < Date.today() || mapEndDate.isEmpty())) {
                 
                 membership_log__c mbr2 = new membership_log__c();
-                
+                system.debug('after account loop 2');
                 mbr2.account__c = acc.id;
+                system.debug('after account loop 3');
                 mbr2.Name = 'Mbr-'+acc.Company_ID__c + '-' + invoiceDeliveryDate.get(acc.id).Year() ;
+                system.debug('after account loop 4');
+                mbr2.Membership_Log_ID_Unique__c = 'Mbr-'+acc.Company_ID__c + '-' + invoiceDeliveryDate.get(acc.id).Year() ;
+                system.debug('after account loop 5');
                 mbr2.Invoice__c = accToInv.get(acc.id);
                 mbr2.Joined__c = invoiceDeliveryDate.get(acc.id);
                 mbr2.Start_Date__c = today;
@@ -71,6 +85,9 @@ public class InvoiceTriggerHandler {
                         || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription Renewal') {
                             mbr2.Membership_Journey__c = 'Renewed Membership';
                         }
+                if(AcctoProduct.get(acc.id) == 'Alliance Membership Subscription') {
+                    mbr2.Type__c = 'Alliance';
+                }
                 
                 mbrList.add(mbr2);
             }
