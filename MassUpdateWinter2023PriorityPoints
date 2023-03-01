@@ -1,0 +1,43 @@
+global class MassUpdate2023WinterPriorityPoints implements Database.Batchable<sObject> {
+    global Database.QueryLocator start(Database.BatchableContext BC) {
+        // collect the batches of records or objects to be passed to execute
+         
+        String query = 'SELECT Id, Name, Winter_show_priority_points__c,Winter_priority_Point_After_Mass_Update__c From Account';
+        return Database.getQueryLocator(query);
+    }
+     
+    global void execute(Database.BatchableContext BC, List<Account> accList) {
+        
+        Set<Id>  accIds = new Set<Id>(); 
+        for(Action__c act : [SELECT Id, Name, Account__c, Program_Version__c, Program_Year__c FROM Action__c 
+                          WHERE Program_Year__c = '2023' 
+                          AND Program_Version__c='Winter']) {        
+            
+            accIds.add(act.Account__c);
+        }
+        system.debug('numbner of accounts with action= ' + accIds.size());
+        for(account acc : accList) {
+            Decimal winterPriorityPoint = acc.Winter_show_priority_points__c;
+            if(!accIds.contains(acc.id)) {
+            acc.Winter_priority_Point_After_Mass_Update__c = winterPriorityPoint+1;
+            //accList.add(acc.id);
+            //accListToUpdate.add(acc);
+        }
+            if(accIds.contains(acc.id)) {
+            acc.Winter_priority_Point_After_Mass_Update__c = winterPriorityPoint;
+            }
+        }
+        try {
+            // Update the Account Record
+            update accList;
+         
+        } catch(Exception e) {
+            System.debug(e);
+        }
+         
+    }   
+     
+    global void finish(Database.BatchableContext BC) {
+        // execute any post-processing operations like sending email
+    }
+}
