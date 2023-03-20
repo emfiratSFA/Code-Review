@@ -8,7 +8,9 @@ public class InvoiceTriggerHandler {
         Map<Id,Date>  mapEndDate = new Map<Id,Date>();
         Map<Id,Date>  invoiceDeliveryDate = new Map<Id,Date>();
         Map<Id,String> AcctoProduct = new Map<Id,String>();
+        Map<Id,String> AcctoProductMemJourney = new Map<Id,String>();
         Map<Id,Id> accToInv = new Map<Id,Id>();
+        Map<Id, Date> acctoMostRecentJoinDate = new Map<Id,Date>();
         Set<Id> excludeInvIds = new set <Id>();
         Map<id,Boolean> invPaidUpdateCheckMap = new Map<id,Boolean>();
         
@@ -16,12 +18,12 @@ public class InvoiceTriggerHandler {
         
         
         
-        
         for(line_item__c lt:[SELECT id, Invoice__c, invoice__r.Account__c, Invoice__r.status__c, 
-                             Invoice__r.Delivery_Start_Date__c, product__r.name
+                             Invoice__r.Delivery_Start_Date__c, product__r.name, product__r.subscription__c,
+                             Invoice__r.Account__r.Most_Recent_Membership_Join_Date__c,product__r.Membership_Journey__c
                              FROM Line_item__c 
                              WHERE
-                             Subscription_Product__c = True
+                             product__r.subscription__c = True
                              //AND Invoice__r.status__c = 'Paid'
                              
                              AND Invoice__c IN : invoiceList
@@ -31,6 +33,8 @@ public class InvoiceTriggerHandler {
                                 accToInv.put(lt.invoice__r.Account__c, lt.Invoice__c);
                                 invoiceDeliveryDate.put(lt.invoice__r.Account__c,lt.Invoice__r.Delivery_Start_Date__c );
                                 AcctoProduct.put(lt.invoice__r.Account__c, lt.product__r.Name);
+                                AcctoProductMemJourney.put(lt.invoice__r.Account__c, lt.product__r.Membership_Journey__c);
+                                acctoMostRecentJoinDate.put(lt.invoice__r.Account__c, lt.Invoice__r.Account__r.Most_Recent_Membership_Join_Date__c);
                                 system.debug('old map invpice status' +invoiceOldMap.get(lt.invoice__c).status__c);
                               if(invoiceOldMap.get(lt.invoice__c).status__c != 'Paid' && lt.invoice__r.Status__c == 'Paid' ) {
                                     invPaidUpdateCheckMap.put(lt.invoice__r.Account__c, True);
@@ -60,7 +64,6 @@ public class InvoiceTriggerHandler {
         for(Account acc : [SELECT Id,Name,Company_ID__c FROM Account Where Id IN : accIds ]) {
             system.debug('after account loop 1');
             if(invPaidUpdateCheckMap.get(acc.id) == True && (mapEndDate.get(acc.id) < Date.today() || mapEndDate.isEmpty())) {
-                
                 membership_log__c mbr2 = new membership_log__c();
                 system.debug('after account loop 2');
                 mbr2.account__c = acc.id;
@@ -70,29 +73,31 @@ public class InvoiceTriggerHandler {
                 mbr2.Membership_Log_ID_Unique__c = 'Mbr-'+acc.Company_ID__c + '-' + invoiceDeliveryDate.get(acc.id).Year() ;
                 system.debug('after account loop 5');
                 mbr2.Invoice__c = accToInv.get(acc.id);
-                mbr2.Joined__c = invoiceDeliveryDate.get(acc.id);
+                //mbr2.Joined__c = invoiceDeliveryDate.get(acc.id);
                 mbr2.Start_Date__c = today;
                 mbr2.End_Date__c = today.addDays(364);
                 mbr2.Subscription__c = True ;
-                if(AcctoProduct.get(acc.id) == 'General Membership Subscription' 
-                   || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription' ) {
+                if(AcctoProduct.get(acc.id).contains('Alliance')) {
+                    mbr2.Type__c = 'Alliance';
+                }
+                if(AcctoProductMemJourney.get(acc.id) == 'New Membership') {
                        mbr2.Membership_Journey__c = 'New membership';
+                       mbr2.Joined__c = invoiceDeliveryDate.get(acc.id); 
+                       
+ 
                    }
-                else if(AcctoProduct.get(acc.id) == 'General Membership Subscription Reinstatement' 
-                        || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription Reinstatement') {
+                else if(AcctoProductMemJourney.get(acc.id) == 'Reinstated Membership') {
                             mbr2.Membership_Journey__c = 'Reinstated Membership';
+                            mbr2.Joined__c = acctoMostRecentJoinDate.get(acc.id);
                         }
-                else if(AcctoProduct.get(acc.id) == 'General Membership Subscription Renewal' 
-                        || AcctoProduct.get(acc.id) == 'Alliance Membership Subscription Renewal') {
+                else if(AcctoProductMemJourney.get(acc.id) == 'Renewed Membership') {
                             mbr2.Membership_Journey__c = 'Renewed Membership';
+                            mbr2.Joined__c = acctoMostRecentJoinDate.get(acc.id);
                         }
-                
                 mbrList.add(mbr2);
             }
         }
-        
         upsert mbrList;
-        
         
         System.debug('accIds' + accIds);
         System.debug('invIds' + invIds);
