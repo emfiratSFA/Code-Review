@@ -1,4 +1,6 @@
-Public static void accountMergeValidation (List<Account> oldList) {
+public class AccountTriggerHandler {
+    
+    Public static void accountMergeValidation (List<Account> oldList) {
         Map<Id,Boolean> accIdToIinvoice=new Map<Id,Boolean>();
         For(Account acc : [Select Id, Name, Member_2__c, Invoiced_com_ID__c, 
                            (Select Id, Name, Account__c, Account__r.Invoiced_com_Id__c, Source_System__c, Status__c From Invoices__r ) 
@@ -8,66 +10,88 @@ Public static void accountMergeValidation (List<Account> oldList) {
                                
                                accIdToIinvoice.put(acc.Id, False);
                                
-                               Set<Id> hasInvoicedcomID = new Set<Id>();
+                               //Set<Id> hasInvoicedcomID = new Set<Id>();
                                Set<Id> netForumInv = new Set<Id>();
                                Set<Id> netForumAndCancelledInv = new Set<Id>();
                                set<Id> netForumAndPaidInv = new Set<Id>();
                                Set<Id> SFInvs = new Set<Id>();
                                Set<id> numOfcancelledInvc = new Set<Id>();
                                set<id> numofInvoices = new Set<Id>();
-                               Set<id> SFPaidInvs = new Set<Id>();
+                               //Set<id> SFPaidInvs = new Set<Id>();
                                
-                               for(Invoice__c inv : acc.Invoices__r) {
-                                   numofInvoices.add(inv.id);
-                                   if(inv.status__c == 'Cancelled') {
-                                       numOfcancelledInvc.add(inv.id);
-                                   }
-                                   if(inv.Account__r.Invoiced_com_Id__c != null) {
-                                       hasInvoicedcomID.add(inv.id);
-                                   }
-                                   if(inv.Source_System__c == 'NetForum') {
-                                       netForumInv.add(inv.id);
-                                   }
-                                   if(inv.Source_System__c == 'NetForum' && inv.Status__c =='Cancelled') {
-                                       netForumAndCancelledInv.add(inv.id);
-                                   }
-                                   if(inv.Source_System__c == 'NetForum' && inv.Status__c =='Paid') {
-                                       netForumAndPaidInv.add(inv.id);
-                                   }
-                                   if(inv.Source_System__c == 'Salesforce') { // consider to change to != 'NetForum'
-                                       SFInvs.add(inv.id);
-                                   }
-                                   if(inv.Source_System__c == 'Salesforce' && inv.Status__c == 'Paid') {
-                                       SFPaidInvs.add(inv.id);
-                                   }
-                                   
-                               }
+                               Set<id> invoiceSourceSystemNotNetforumAndInvoiceStatusCancelled = new Set<Id>();
+                               Set<id> invoiceSourceSystemEqNetforumAndPaymentSourceSystemNotNetforum = new Set<Id>();
+                               
+                               
                                if(acc.member_2__c == 'Yes') {
                                    accIdToIinvoice.put(acc.Id, True);
                                }
-                               else if (acc.Invoiced_com_ID__c == null && netForumAndPaidInv.size() > 0 ) {
-                                   accIdToIinvoice.put(acc.Id, True);
-                               }
-                               else if (acc.Invoiced_com_ID__c == null && SFPaidInvs.size() > 0 ) {
-                                   accIdToIinvoice.put(acc.Id, True);
-                               }
-                               else if (acc.Invoiced_com_ID__c != null) {
-                                   accIdToIinvoice.put(acc.Id, True);
+                               else {
+                                   for(Invoice__c inv : acc.Invoices__r) {
+                                       numofInvoices.add(inv.id);
+                                       
+                                       if(inv.Source_System__c != 'Netforum' && inv.Status__c !='Cancelled') {
+                                           invoiceSourceSystemNotNetforumAndInvoiceStatusCancelled.add(inv.id);
+                                       }
+                                       if(inv.Source_System__c == 'Netforum' && inv.Set_Invoiced_com_Status__c =='Do not send') {
+                                           invoiceSourceSystemEqNetforumAndPaymentSourceSystemNotNetforum.add(inv.id); 
+                                       }
+                                       if(inv.status__c == 'Cancelled') {
+                                           numOfcancelledInvc.add(inv.id);
+                                       }
+                                       //if(inv.Account__r.Invoiced_com_Id__c != null) {
+                                       //    hasInvoicedcomID.add(inv.id);
+                                       //}
+                                       if(inv.Source_System__c == 'NetForum') {
+                                           netForumInv.add(inv.id);
+                                       }
+                                       if(inv.Source_System__c == 'NetForum' && inv.Status__c =='Cancelled') {
+                                           netForumAndCancelledInv.add(inv.id);
+                                       }
+                                       if(inv.Source_System__c == 'NetForum' && inv.Status__c =='Paid') {
+                                           netForumAndPaidInv.add(inv.id);
+                                       }
+                                       if(inv.Source_System__c == 'Salesforce') { // consider to change to != 'NetForum'
+                                           SFInvs.add(inv.id);
+                                       }
+                                       //if(inv.Source_System__c == 'Salesforce' && inv.Status__c == 'Paid') {
+                                       //    SFPaidInvs.add(inv.id);
+                                       //}
+                                       
+                                       
+                                   } // end loop
                                    
-                                   if(netForumInv.size() > 0 && ( netForumAndCancelledInv.size() == netForumInv.size() )  ) {
-                                       accIdToIinvoice.put(acc.Id, False);
+                                   //if (acc.Invoiced_com_ID__c == null && netForumAndPaidInv.size() > 0 ) {
+                                   //    accIdToIinvoice.put(acc.Id, True);
+                                   //}
+                                   //else if (acc.Invoiced_com_ID__c == null && SFPaidInvs.size() > 0 ) {
+                                   //    accIdToIinvoice.put(acc.Id, True);
+                                   //}
+                                   //if ()
+                                   
+                                   if (acc.Invoiced_com_ID__c != null) {
+                                       accIdToIinvoice.put(acc.Id, True);
+                                       
+                                       if(netForumInv.size() > 0 && ( netForumAndCancelledInv.size() == netForumInv.size() )  ) {
+                                           accIdToIinvoice.put(acc.Id, False);
+                                       }
+                                       if(netForumInv.size() > 0 && netForumAndPaidInv.size() > 0 ) {
+                                           accIdToIinvoice.put(acc.Id, True);
+                                       }
+                                       if(/*netForumInv.size() > 0 && netForumAndCancelledInv.size() > 0 && */SFInvs.size() > 0 ) {
+                                           accIdToIinvoice.put(acc.Id, True);
+                                       }
+                                       if(numOfcancelledInvc.size() == numofInvoices.size()  ) {
+                                           accIdToIinvoice.put(acc.Id, False);
+                                       }
                                    }
-                                   if(netForumInv.size() > 0 && netForumAndPaidInv.size() > 0 ) {
+                                   if(invoiceSourceSystemNotNetforumAndInvoiceStatusCancelled.size() > 0 ) {
                                        accIdToIinvoice.put(acc.Id, True);
                                    }
-                                   if(/*netForumInv.size() > 0 && netForumAndCancelledInv.size() > 0 && */SFInvs.size() > 0 ) {
+                                   if(invoiceSourceSystemEqNetforumAndPaymentSourceSystemNotNetforum.size() > 0 ) {
                                        accIdToIinvoice.put(acc.Id, True);
-                                   }
-                                   if(numOfcancelledInvc.size() == numofInvoices.size()  ) {
-                                       accIdToIinvoice.put(acc.Id, False);
                                    }
                                }
-                               
                                
                            }
         system.debug(accIdToIinvoice);
