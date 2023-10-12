@@ -1,0 +1,51 @@
+global class CreateOppsFromExhAccount implements Database.Batchable<sObject>{
+
+    global Database.QueryLocator start(Database.BatchableContext BC) {
+        
+        String query = 'SELECT Id, Name, event__c, Account__c FROM Exhibitor_Account__c WHERE Isactive__c=True AND Renewal_Opportunity_Created__c = False AND Event__c = \'a1J3I000000odTGUAY\'';
+        return Database.getQueryLocator(query);
+        
+    }
+    global void execute(Database.BatchableContext BC, List<Exhibitor_Account__c> exhList) {
+        Date CloseDate = Date.today().addDays(180);
+        String eventId = 'a1J3I000000odTLUAY';
+        List<Opportunity> oppToBeInserted = new List<Opportunity>();
+        List<Exhibitor_Account__c> exhAccountToUpdate = new List<Exhibitor_Account__c>();
+        Set<Id> AccIds = new Set<Id>();
+        
+        For(Exhibitor_Account__c exh : exhList) {
+            
+            AccIds.add(exh.Account__c);
+            exh.Renewal_Opportunity_Created__c = True;
+            exhAccountToUpdate.add(exh);
+        }
+        update exhAccountToUpdate;
+        
+        Map<Id,Account> accMap = new Map<Id,Account>([Select Id, Name, Representative__c From Account Where ID IN : AccIds]);
+        List<Account> accList = [Select Id, Name, Representative__c From Account Where ID IN : AccIds];
+        For(Account acc : accList) {
+            
+            Opportunity opp = new Opportunity();
+            opp.AccountId = acc.Id;
+            opp.Representative__c = acc.Representative__c;
+            opp.Opportunity_Type__c = 'Booth Sales';
+            opp.Event__c = eventId;
+            opp.StageName = 'Prospecting';
+            opp.CloseDate = CloseDate;
+            opp.RecordTypeId = '0123I000000MMWbQAO';
+            opp.OwnerId = '0058V00000CpCViQAN';
+            insert opp;
+            //oppToBeInserted.add(opp);
+            
+        }
+        
+        //insert oppToBeInserted;
+        update exhList;
+        
+        }
+        
+    
+    global void finish(Database.BatchableContext BC) {
+        
+    }
+}
