@@ -1,0 +1,46 @@
+global class RelateExhibitorAccountToOpportunity implements Database.Batchable<sObject>{
+
+    global Database.QueryLocator start(Database.BatchableContext BC) {
+        
+        String query = 'SELECT Id, Name, event__c, Account__c,Booth__c,Hall__c,Quantity__c,Source_Product_Name__c,Size_Square_Feet__c,Size_Description__c FROM Exhibitor_Account__c WHERE Isactive__c=True';
+        return Database.getQueryLocator(query);
+    }
+    global void execute(Database.BatchableContext BC, List<Exhibitor_Account__c> exhList) {
+        
+        Set<id> eventIdSet = new Set<id>();
+        Set<id> accIdSet = new Set<id>();
+        
+        For(Exhibitor_Account__c exh : exhList) {
+            
+            Id eventId = exh.Event__c;
+            Id accId = exh.Account__c;
+            List<Opportunity> opptoUpdate = new List<Opportunity>();
+            system.debug('eventId' + eventId);
+            system.debug('accId' +accId);
+            
+            Opportunity[] opp = [Select Id,Name, Exhibitor_Account__c, event__c, AccountId, Booth_Number__c,Hall__c,Quantity__c,Source_Product__c,Square_Feet__c,Description__c
+                                 From Opportunity Where Event__c  = : eventId AND AccountId  = :  accId LIMIT 1];
+            system.debug('opp' +accId);
+            
+            if(opp.size()>0) {
+                opp[0].Exhibitor_Account__c = exh.id;
+                opp[0].Booth_Number__c = exh.Booth__c;
+                opp[0].Hall__c = exh.Hall__c;
+                opp[0].Quantity__c = exh.Quantity__c;
+                opp[0].Source_Product__c = exh.Source_Product_Name__c;
+                opp[0].Square_Feet__c = exh.Size_Square_Feet__c;
+                opp[0].Description__c = exh.Size_Description__c;
+                opp[0].StageName = 'Contract Received/Won';
+                
+                opptoUpdate.add(opp[0]);
+            }
+            update opptoUpdate;
+            
+            
+            eventIdSet.add(exh.Event__c);
+            accIdSet.add(exh.Account__c);
+        }
+        
+    }
+    global void finish(Database.BatchableContext BC) {}
+}
