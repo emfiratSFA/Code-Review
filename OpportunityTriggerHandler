@@ -1,0 +1,93 @@
+public class OpportunityTriggerHandler {
+    //ASANA ID ==> 1205671849833749
+    //This method assigns record type or opportunity type fields interchangebably 
+    Public Static Void assignOppTypebasedonOppRecordType (List<opportunity> oppList) {
+        for(Opportunity opp : oppList) {
+            Id recordTypeId = opp.RecordTypeId;
+            system.debug('recordTypeId ' +recordTypeId);
+            if(opp.RecordTypeId == '0123I000000MMWbQAO' && opp.Converted_from_lead__c == false) {
+                opp.Opportunity_Type__c = 'Booth Sales';
+            }
+            if(opp.Converted_from_lead__c && opp.Opportunity_Type__c == 'Booth Sales') {
+               opp.RecordTypeId = '0123I000000MMWbQAO';
+               }
+                
+            }
+        }
+    //ASANA ID ==> 1205671849833727   This method assigns a name to the opportunity based on Event record details
+    //ASANA ID ==> 1205671849833762   Assigns a representative to the opportunity based on the representative on the Account Record
+    //ASANA ID ==> 1205671849833770  Assigns current stage to the current stage field 
+    //ASANA ID ==> 1205671849833772  Assigns the date that the opportunity entered the curent stage
+    Public static void upsertOppFields (List<opportunity> oppList, Boolean isInsert) {
+        Set<id> eventIdSet = new Set<id>();
+        Set<id> accountIdSet = new Set<id>();
+        for(opportunity opp1 : oppList) {
+        eventIdSet.add(opp1.Event__c);
+            accountIdSet.add(opp1.AccountId);
+        }
+        
+        system.debug('eventIdSet ' +eventIdSet);
+        
+        
+        Map<Id,Event__c> event = new Map<Id,Event__c> ( [Select Id, Name, Program_Version__c, Year__c From Event__c Where ID IN :eventIdSet ]);
+        Map<Id,Account> account = new Map<Id,Account> ( [Select Id, Name,Representative__c  From Account Where ID IN :accountIdSet ]);
+        
+        Date today = date.today();
+        for(opportunity opp : oppList) {
+            If(opp.Opportunity_Type__c == 'Booth Sales') {
+            
+        String AccountName = account.get(opp.AccountId).Name;
+        String Programversion = event.get(opp.Event__c).Program_version__c  ;  
+        Decimal Programyear = event.get(opp.Event__c).Year__c  ;
+            
+        Id repId = account.get(opp.AccountId).Representative__c;
+        
+            
+        opp.name = AccountName+' -' + Programversion+' '+Programyear +' Booth Sales';
+        opp.Representative__c = repId;
+        opp.Current_Stage__c = opp.StageName;
+        opp.Current_Stage_Set_Date__c = today;
+            if(repId!= null) {
+                opp.OwnerId = repId;        
+        }
+             if(isInsert) {
+        opp.StageName ='Prospecting';
+        }
+    }
+        }
+    }
+    
+    Public static void createOppLineItemOnNewBoothSalesOpportunities (List<Opportunity> oppList ) {
+        List<opportunityLineItem> oliToBeInserted = new List<opportunityLineItem>();
+        String pbName;
+        String productName;
+        
+        for (Opportunity opp : oppList) {
+             if(opp.Manually_add_Products__c == false && opp.Opportunity_Type__c == 'Booth Sales') {
+                 
+                 pbName = opp.Program_Year__c;
+                 If(opp.Opportunity_Type_Details__c == 'International Booth Sales' ) {
+                     productName = 'International';
+                 }else{
+                     productName = 'Domestic';
+                 }
+                 
+                 
+                 pricebook2 pb = [select id FROM pricebook2 where name Like : ('%'+pbName+'%')];
+                 ID pricebookId = pb.id;
+                 PricebookEntry pbs = [Select Id, Name FROM PricebookEntry Where pricebook2id =: pricebookId AND Name LIKE :('%'+productName+'%') ];
+                 
+                 OpportunityLineItem oli = new OpportunityLineItem();
+                 
+                 oli.OpportunityId = opp.id;
+                 oli.Quantity = 100;
+                 oli.PricebookEntryId = pbs.id;
+                 oliToBeInserted.add(oli);
+                     
+            
+        }
+            insert oliToBeInserted;
+        }
+    }
+    
+    }
