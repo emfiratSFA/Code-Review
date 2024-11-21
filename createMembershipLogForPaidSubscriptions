@@ -1,5 +1,5 @@
 public class InvoiceTriggerHandler {
-    public static void createMembershipLogForPaidSubscriptions(List<Invoice__c> invoiceList, Map<id,Invoice__c> invoiceOldMap) { 
+    public static void createMembershipLogForPaidSubscriptions(List<Invoice__c> invoiceList, Map<id,Invoice__c> invoiceOldMap, Boolean newInvoice) { 
         
         Date today = date.today();
         
@@ -7,12 +7,19 @@ public class InvoiceTriggerHandler {
         Set<Id> invIds = new Set<Id>();
         Map<Id,Date>  mapEndDate = new Map<Id,Date>();
         Map<Id,Date>  invoiceDeliveryDate = new Map<Id,Date>();
+        Map<Id,Date> invCreatedAtUtcDate = new Map<Id,Date>();
         Map<Id,String> AcctoProduct = new Map<Id,String>();
+        Map<Id,Boolean> AccToAlliance = new Map<Id,Boolean>();
         Map<Id,String> AcctoProductMemJourney = new Map<Id,String>();
         Map<Id,Id> accToInv = new Map<Id,Id>();
         Map<Id, Date> acctoMostRecentJoinDate = new Map<Id,Date>();
         Set<Id> excludeInvIds = new set <Id>();
         Map<id,Boolean> invPaidUpdateCheckMap = new Map<id,Boolean>();
+        Map<id,Boolean> SFDSinvoice = new Map<id,Boolean>();
+        Map<id,Boolean> SUBInvoice = new Map<Id,Boolean>();
+        Map<id,Boolean> SUBInvoiceNew = new Map<Id,Boolean>();
+        Map<id,Boolean> reinstatement2023Map = new Map<Id,Boolean>();
+        Map<Id,Date> subscriptionStartDateMap = new Map<Id,Date>();
         
         
         
@@ -20,11 +27,13 @@ public class InvoiceTriggerHandler {
         
         for(line_item__c lt:[SELECT id, Invoice__c, invoice__r.Account__c, Invoice__r.status__c, 
                              Invoice__r.Delivery_Start_Date__c, product__r.name, product__r.subscription__c,
-                             Invoice__r.Account__r.Most_Recent_Membership_Join_Date__c,product__r.Membership_Journey__c
+                             Invoice__r.Account__r.Most_Recent_Membership_Join_Date__c,product__r.Membership_Journey__c,
+                             Invoice__r.name,Invoice__r.Created_At_UTC__c,invoice__r.Order__r.X2023_reinstatement__c, invoice__r.Subscription_Start_date__c
                              FROM Line_item__c 
                              WHERE
-                             product__r.subscription__c = True
-                             //AND Invoice__r.status__c = 'Paid'
+                             (product__r.subscription__c = True 
+                              OR product__r.Name = 'Application Fee - Member')
+                             AND Invoice__r.status__c = 'Paid'
                              
                              AND Invoice__c IN : invoiceList
                             ]) {
@@ -32,23 +41,57 @@ public class InvoiceTriggerHandler {
                                 invIds.add(lt.invoice__c); 
                                 accToInv.put(lt.invoice__r.Account__c, lt.Invoice__c);
                                 invoiceDeliveryDate.put(lt.invoice__r.Account__c,lt.Invoice__r.Delivery_Start_Date__c );
-                                AcctoProduct.put(lt.invoice__r.Account__c, lt.product__r.Name);
+                                invCreatedAtUtcDate.put(lt.invoice__r.Account__c,lt.invoice__r.Created_At_UTC__c.Date());
+                                if(lt.product__r.Name.contains('Alliance')) {
+                                    AccToAlliance.put(lt.invoice__r.Account__c, True);
+                                }
+                                //AcctoProduct.put(lt.invoice__r.Account__c, lt.product__r.Name);
                                 AcctoProductMemJourney.put(lt.invoice__r.Account__c, lt.product__r.Membership_Journey__c);
                                 acctoMostRecentJoinDate.put(lt.invoice__r.Account__c, lt.Invoice__r.Account__r.Most_Recent_Membership_Join_Date__c);
                                 system.debug('old map invpice status' +invoiceOldMap.get(lt.invoice__c).status__c);
-                              if(invoiceOldMap.get(lt.invoice__c).status__c != 'Paid' && lt.invoice__r.Status__c == 'Paid' ) {
+
+                                //SFDSinvoice.put(lt.invoice__r.Account__c, False);
+                                //SUBInvoice.put(lt.invoice__r.Account__c, False);
+                                //SUBInvoiceNew.put(lt.invoice__r.Account__c, False);
+                                //reinstatement2023Map.put(lt.invoice__r.Account__c, False);
+                           //     invPaidUpdateCheckMap.put(lt.invoice__r.Account__c, False);
+
+                                if(invoiceOldMap.get(lt.invoice__c).status__c != 'Paid' && lt.invoice__r.Status__c == 'Paid' && newInvoice == false) {
                                     invPaidUpdateCheckMap.put(lt.invoice__r.Account__c, True);
-                                    
-        
                                 }
+                                if(lt.Invoice__r.name.contains('SF-DS-24')) { // to accomodate 2600+ invoices created oct 2023 to transfer to subscription model. this and all related lines will be removed
+                                    SFDSinvoice.put(lt.invoice__r.Account__c, True);
+                                }
+                                if((lt.invoice__r.name.startsWith('SUB') && newInvoice == True && lt.Invoice__r.status__c == 'Paid')
+                                  ||(lt.invoice__r.name.startsWith('SUB') && invoiceOldMap.get(lt.invoice__c).status__c != 'Paid' && lt.invoice__r.Status__c == 'Paid')){
+                                      System.debug('SUBInvoice');
+                                    SUBInvoice.put(lt.invoice__r.Account__c, True);
+                                }
+                                system.debug(lt.product__r.Name);
+                                if(SUBInvoice.get(lt.invoice__r.Account__c ) == True && lt.product__r.Name.contains('Fee') ) {
+                                    SUBInvoiceNew.put(lt.invoice__r.Account__c, True);
+                                    SUBInvoice.put(lt.invoice__r.Account__c, False);
+                                    System.debug('SUBNewInvoice');
+                                    
+                                }
+                                if(lt.invoice__r.Order__r.X2023_reinstatement__c == True || lt.invoice__r.Name.contains('SF-DS-R')) {
+                                    reinstatement2023Map.put(lt.invoice__r.Account__c, True);
+                                    subscriptionStartDateMap.put(lt.invoice__r.Account__c, lt.invoice__r.Subscription_Start_date__c);
+                                }
+                                system.debug('reinstatement checkbox ==>  '+lt.invoice__r.Order__r.X2023_reinstatement__c);
+
                                 
-        system.debug('invoice id' +lt.invoice__c);
+                                system.debug('invoice id' +lt.invoice__c);
                             }
         System.debug('accIds' + accIds);
         System.debug('invIds' + invIds);
         System.debug('mapEndDate' + mapEndDate);
         system.debug('invoicedeliverydate' + invoiceDeliveryDate);
-        system.debug('before membership loop');        
+        system.debug('before membership loop'); 
+        System.debug('AcctoProduct' + AcctoProduct);
+        System.debug('AcctoProductMemJourney' + AcctoProductMemJourney);
+        
+        
         for(membership_log__c mbr : [SELECT Id, Name, End_Date__c, Invoice__c, Account__c FROM Membership_Log__c WHERE Account__c IN : accIds ]) {
             mapEndDate.put(mbr.Account__c, mbr.End_Date__c);
             system.debug('mapAccount' + mbr.account__c);
@@ -61,9 +104,64 @@ public class InvoiceTriggerHandler {
         
         System.debug('mbrList' + mbrList);
         system.debug('before account loop');
+        
+        
+        
+        
+        
+        
+        
+        
+        
         for(Account acc : [SELECT Id,Name,Company_ID__c FROM Account Where Id IN : accIds ]) {
+            String accountId = acc.id;
+            Date DeliveryDate = invoiceDeliveryDate.get(acc.id);
+            Date CreatedAtUTC = invCreatedAtUtcDate.get(acc.id);
+            Date subscriptionStartDate = subscriptionStartDateMap.get(acc.id);
             system.debug('after account loop 1');
-            if(invPaidUpdateCheckMap.get(acc.id) == True && (mapEndDate.get(acc.id) < Date.today() || mapEndDate.isEmpty())) {
+            System.debug('SFDSinvoice' +SFDSinvoice.get(acc.id));
+            System.debug('SUBInvoice' +SUBInvoice.get(acc.id));
+            System.debug('SUBInvoiceNew' +SUBInvoiceNew.get(acc.id));
+            System.debug('reinstatement2023Map' +reinstatement2023Map.get(acc.id));
+            System.debug('invCreatedAtUtcDate' +invCreatedAtUtcDate.get(acc.id));
+            
+            //Membership_log__c[] mbrlog = [Select Id, Name, End_date__c from Membership_log__c Where Account__c IN: accIds Order by End_date__c DESC LIMIT 1];
+            
+            MemberJourneyDecider.MemberJourneyResult result = MemberJourneyDecider.determineMemJourney(accountId, CreatedatUTC);
+
+           // Access the membershipJourney and joinedDate values from the result object
+            String membershipJourney = result.membershipJourney;
+            Date joinedDate = result.joinedDate;
+            System.debug('membershipJourney = ' +membershipJourney);
+            System.debug('joinedDate = ' +joinedDate);
+            //String membershipJourney;
+            //Date joinedDate;
+            //Date threeYearsBefore = date.today().addDays(-1095);
+            
+           /* If(mbrlog.size() == 0) {
+            membershipJourney = 'New Membership';
+            joinedDate = CreatedAtUTC;
+            }
+            else If(mbrlog.size() == 1) {
+                If(mbrlog[0].End_Date__c >= today || mbrlog[0].End_Date__c == CreatedAtUTC.addDays(-1) ) {
+                    membershipJourney = 'Renewed Membership';
+                    joinedDate = acctoMostRecentJoinDate.get(acc.id);
+                } 
+                else if( mbrlog[0].End_Date__c < today && mbrlog[0].End_Date__c >  threeYearsBefore ) {
+                    membershipJourney = 'Reinstated Membership';
+                    joinedDate = acctoMostRecentJoinDate.get(acc.id);
+                }
+                else if( mbrlog[0].End_Date__c <  threeYearsBefore ) {
+                    membershipJourney = 'New Membership';
+                    joinedDate = CreatedAtUTC;
+                }
+            
+            }*/
+            
+            if((invPaidUpdateCheckMap.get(acc.id) == True && (mapEndDate.get(acc.id) < Date.today() || mapEndDate.isEmpty())) 
+            || (SUBInvoice.get(acc.id) == True && (mapEndDate.get(acc.id) <= Date.today() || mapEndDate.isEmpty())) 
+            || ( reinstatement2023Map.get(acc.id) == True && invPaidUpdateCheckMap.get(acc.id) == True) ){
+
                 membership_log__c mbr2 = new membership_log__c();
                 system.debug('after account loop 2');
                 mbr2.account__c = acc.id;
@@ -74,30 +172,66 @@ public class InvoiceTriggerHandler {
                 system.debug('after account loop 5');
                 mbr2.Invoice__c = accToInv.get(acc.id);
                 //mbr2.Joined__c = invoiceDeliveryDate.get(acc.id);
-                mbr2.Start_Date__c = today;
-                mbr2.End_Date__c = today.addDays(364);
+                mbr2.Start_Date__c = CreatedAtUTC;
+                mbr2.End_Date__c = CreatedAtUTC.addYears(1).addDays(-1);
+                if(SFDSinvoice.get(acc.id) == True) {
+                    System.debug('SFDSinvoice' +SFDSinvoice.get(acc.id));
+                    mbr2.Start_Date__c = DeliveryDate;
+                    mbr2.End_Date__c = DeliveryDate.addDays(365);
+                }
+                If(reinstatement2023Map.get(acc.id) == True) {
+                    System.debug('reinstatement2023Map' +reinstatement2023Map.get(acc.id));
+                    mbr2.Start_Date__c = subscriptionStartDate;
+                    mbr2.End_Date__c = subscriptionStartDate.addYears(1).addDays(-1);
+                }
                 mbr2.Subscription__c = True ;
-                if(AcctoProduct.get(acc.id).contains('Alliance')) {
+                
+                /*if(AcctoProduct.get(acc.id).contains('Alliance')) {
+                    mbr2.Type__c = 'Alliance';
+                }*/
+                if(!AccToAlliance.isEmpty() && AccToAlliance.get(acc.id) == True) {
                     mbr2.Type__c = 'Alliance';
                 }
-                if(AcctoProductMemJourney.get(acc.id) == 'New Membership') {
-                       mbr2.Membership_Journey__c = 'New membership';
-                       mbr2.Joined__c = invoiceDeliveryDate.get(acc.id); 
-                       
- 
-                   }
-                else if(AcctoProductMemJourney.get(acc.id) == 'Reinstated Membership') {
-                            mbr2.Membership_Journey__c = 'Reinstated Membership';
-                            mbr2.Joined__c = acctoMostRecentJoinDate.get(acc.id);
-                        }
-                else if(AcctoProductMemJourney.get(acc.id) == 'Renewed Membership') {
-                            mbr2.Membership_Journey__c = 'Renewed Membership';
-                            mbr2.Joined__c = acctoMostRecentJoinDate.get(acc.id);
-                        }
+                mbr2.Membership_Journey__c = membershipJourney;
+                mbr2.Joined__c = joinedDate;
+
+               /* if((AcctoProductMemJourney.get(acc.id) == 'New Membership' && SFDSinvoice.get(acc.id) != True && reinstatement2023Map.get(acc.id) != True && SUBInvoice.get(acc.id) != True)  || SUBInvoiceNew.get(acc.id) == True) {
+                    System.debug('New membership');
+                    mbr2.Membership_Journey__c = 'New membership';
+                    mbr2.Joined__c = CreatedAtUTC;
+                    
+                }
+                else if(AcctoProductMemJourney.get(acc.id) == 'Reinstated Membership' && SFDSinvoice.get(acc.id) != True && SUBInvoice.get(acc.id) != True && SUBInvoiceNew.get(acc.id) != True) {
+                     System.debug('Reinstated membership');
+                    mbr2.Membership_Journey__c = 'Reinstated Membership';
+                    mbr2.Joined__c = acctoMostRecentJoinDate.get(acc.id);
+                }
+                else if((AcctoProductMemJourney.get(acc.id) == 'Renewed Membership' || SFDSinvoice.get(acc.id) == True || SUBInvoice.get(acc.id) == True || reinstatement2023Map.get(acc.id) == True) && SUBInvoiceNew.get(acc.id) != True) {
+                    System.debug('Renewed membership');
+                    mbr2.Membership_Journey__c = 'Renewed Membership';
+                    mbr2.Joined__c = acctoMostRecentJoinDate.get(acc.id);
+                }*/
+                For(Invoice__c inv : [Select Id, Name,Created_Membership_Record__c From Invoice__c Where ID IN : invIDs]) {
+            inv.Created_Membership_Record__c = 'Yes';
+            update inv;
+            
+        }
+                System.debug(mbr2);
                 mbrList.add(mbr2);
+                System.debug(mbrList);
             }
         }
+        
         upsert mbrList;
+        
+        /*List<Invoice__c> updateInvoice = new List<Invoice__c>();
+        For(Invoice__c inv : [Select Id, Name,Created_Membership_Record__c From Invoice__c Where ID IN : invIDs]) {
+            inv.Created_Membership_Record__c = 'Yes';
+            updateInvoice.add(inv);
+            
+        }
+        update updateInvoice;*/
+        
         
         System.debug('accIds' + accIds);
         System.debug('invIds' + invIds);
