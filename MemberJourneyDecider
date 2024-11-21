@@ -1,0 +1,55 @@
+public class MemberJourneyDecider {
+    
+    public class MemberJourneyResult {
+        public String membershipJourney { get; set; }
+        public Date joinedDate { get; set; }
+        
+        public MemberJourneyResult(String membershipJourney, Date joinedDate) {
+            this.membershipJourney = membershipJourney;
+            this.joinedDate = joinedDate;
+        }
+    }
+    
+    public static MemberJourneyResult determineMemJourney(String AccId, Date createdAtUTC) {
+        System.debug('AccId ' +AccId);
+        System.debug('createdAtUTC ' +createdAtUTC);
+        
+        Date ninetyDaysBefore = date.today().addDays(-90);
+        Membership_log__c[] mbrlog = [Select Id, Name, End_date__c, CreatedDate from Membership_log__c Where Account__c =: AccId /*AND (NOT CreatedDate < :ninetyDaysBefore )*/ Order by End_date__c DESC LIMIT 1];
+        System.debug('mbrLog in memjourney decider ==> ' + mbrlog);
+        Account[] acc = [Select Id, Name, Most_Recent_Membership_Join_Date__c From Account Where ID =: AccId ];
+        
+        String membershipJourney;
+        Date joinedDate;
+        Date threeYearsBefore = Date.today().addDays(-1095);
+       
+        
+        
+       
+        
+        if (mbrlog.size() == 0) {
+            membershipJourney = 'New Membership';
+            joinedDate = createdAtUTC; 
+        } else if (mbrlog.size() == 1) {
+            if (mbrlog[0].End_Date__c >= Date.today() || mbrlog[0].End_Date__c == createdAtUTC.addDays(-1)) {
+                membershipJourney = 'Renewed Membership';
+                joinedDate = acc[0].Most_Recent_Membership_Join_Date__c; 
+            } else if (mbrlog[0].End_Date__c <= createdAtUTC.addDays(-2) && mbrlog[0].End_Date__c > threeYearsBefore) {
+                membershipJourney = 'Reinstated Membership';
+                joinedDate = acc[0].Most_Recent_Membership_Join_Date__c;
+            } else if (mbrlog[0].End_Date__c < threeYearsBefore) {
+                membershipJourney = 'New Membership';
+                joinedDate = createdAtUTC;
+            }
+            else{
+                membershipJourney = 'Renewed Membership';
+                joinedDate = acc[0].Most_Recent_Membership_Join_Date__c; 
+            }
+        }
+        System.debug('mbrlog' +mbrlog);
+        System.debug('joinedDate' +joinedDate);
+        System.debug('membershipJourney' +membershipJourney);
+        System.debug('joinedDate' +joinedDate);
+        return new MemberJourneyResult(membershipJourney, joinedDate);
+    }
+}
