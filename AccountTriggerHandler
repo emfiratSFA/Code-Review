@@ -1,0 +1,110 @@
+public class AccountTriggerHandler {
+    
+    public static void accountMergeValidation (List<Account> oldList) {
+        
+    Set<id> accIds = new Set<id>();
+    Map<Id,Boolean> accIdToIinvoice=new Map<Id,Boolean>();
+    System.debug(accIdToIinvoice);
+    
+    for(Account acc:oldList)
+    {
+        accIds.add(acc.id);
+        if(acc.Member_2__c=='Yes')
+        {
+            acc.addError('Account Deletion / Merge is not allowed if the Account to be deleted is a member');  
+        }
+    }
+    List<Invoice__c> invList=[Select Id,Account__c,Sales_Rep__c, Invoiced_com_ID__c,Invoiced_com_ID_Formula_Display__c, Status__c, Source_System__c from  Invoice__c where Account__c IN:accIds];
+    system.debug('invouce is'+invList);
+    for(Invoice__c inv:invList)
+    {
+        accIdToIinvoice.put(inv.Account__c, true);
+        if(inv.Invoiced_com_ID_Formula_Display__c!=null && inv.Status__c == 'Cancelled') {
+            accIdToIinvoice.put(inv.Account__c, false);                       
+        } 
+        
+        if(inv.Invoiced_com_ID_Formula_Display__c!=null && inv.Source_System__c == 'NetForum')  {
+           accIdToIinvoice.put(inv.Account__c, false);
+            
+        }
+        /*{
+            system.debug('inside the if');
+            /*if( accIdToIinvoice.get(inv.Account__c)!=true)// condition to check if we already have invoice for account where invoiced com Iid is not null
+            {
+                system.debug('inside 2nd if');
+                accIdToIinvoice.put(inv.Account__c, true);
+            }
+            accIdToIinvoice.put(inv.Account__c, true);
+            system.debug('invoiceMap' +accIdToIinvoice);
+        }*/
+        /*else {
+            accIdToIinvoice.put(inv.Account__c, false);
+            
+        }*/
+        system.debug('acctoInvoiceMap' +accIdToIinvoice);
+        
+            
+    }
+    for(Account acc:oldList)
+    {
+        if(accIdToIinvoice.get(acc.Id)!= null && accIdToIinvoice.get(acc.Id)==true)
+        {
+            acc.addError('Account Deletion / Merge is not allowed if there is a related invoice with an Invoiced.com ID');          
+        }
+    }
+    
+
+}
+    // SFA -9 - create a trigger for new accounts
+   Public static void assignPriorityPointsToNewAccounts (List<Account> accList ) {
+
+        Date today = date.today();
+        Integer thisYear = today.year();
+        
+        Decimal winterPriorityPoint ;
+        Decimal summerPriorityPoint ;
+        
+        For(Event__c ev : [Select Id, Name, Program__c, Program_Version__c, Year__c, Priority_Point__c, 
+                           Priority_Point_New_Member_Get_After_Show__c, End_Date_of_Event__c From Event__c WHERE Year__c =: thisYear]) {
+            system.debug(ev);
+            
+            //Date winterShowDate ;
+            //date summerShowDate ;
+            if(ev.Program_Version__c =='Winter' ) {
+                //winterShowDate = ev.End_Date_of_Event__c;
+                if(ev.End_Date_of_Event__c > today ) {
+                winterPriorityPoint = ev.Priority_Point__c;
+                
+            }
+                if(ev.End_Date_of_Event__c <= today ) {
+                winterPriorityPoint = ev.Priority_Point_New_Member_Get_After_Show__c;
+                
+            }
+            }
+            if(ev.Program_Version__c =='Summer' ) {
+                //summerShowDate = ev.End_Date_of_Event__c;
+                if(ev.End_Date_of_Event__c > today ) {
+                summerPriorityPoint = ev.Priority_Point__c;
+                
+            }
+                if(ev.End_Date_of_Event__c <= today ) {
+                summerPriorityPoint = ev.Priority_Point_New_Member_Get_After_Show__c;
+                
+            }
+                
+            }
+            
+            For(Account acc : accList) {
+                
+                    acc.Winter_show_priority_points__c = winterPriorityPoint;
+                    acc.Summer_show_priority_points__c = summerPriorityPoint;
+                
+                
+            }
+            
+        }
+        
+        
+    }
+ 
+}
