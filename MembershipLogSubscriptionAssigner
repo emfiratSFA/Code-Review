@@ -1,0 +1,33 @@
+global class MembershipLogSubscriptionAssigner implements Database.Batchable<sObject> {
+    global Database.QueryLocator start(Database.BatchableContext BC) {
+        String query = 'Select Id, Name, Subscription_Record__c, Account__c From membership_log__c Where Subscription_Record__c = null AND CreatedDate > YESTERDAY';
+        
+        return Database.getQueryLocator(query);
+    }
+    global void execute(Database.BatchableContext BC, List<membership_log__C> mbrList) { 
+        
+        List<membership_log__c> mbrToUpdate = new List<membership_log__c>();
+        
+        For(Membership_log__c mbr : mbrList ) {
+            ID AccountID = mbr.Account__c;
+            Subscription__c[] sublist = [Select Id,Name ,Current_Period_End__c, Account__c from Subscription__c 
+                                         where Current_Period_End__c > TODAY AND Account__c = :AccountID // Consider adding status field for filtering
+                                         order by Current_Period_End__c DESC LIMIT 1  ];
+            if(sublist.size() > 0) {
+                mbr.Subscription_Record__c = sublist[0].id;
+                mbrToUpdate.add(mbr);
+            }
+        }
+        try{
+            update mbrToUpdate;
+            }
+        catch(exception e) {
+            e.getmessage();
+        }
+        
+    }
+    global void finish(Database.BatchableContext BC) {
+        
+        
+    }
+}
