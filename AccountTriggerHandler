@@ -98,6 +98,7 @@ public class AccountTriggerHandler {
                 
                     acc.Winter_show_priority_points__c = winterPriorityPoint;
                     acc.Summer_show_priority_points__c = summerPriorityPoint;
+                    acc.Winter_FancyFaire_Priority_Points__c = 1;
                 
                 
             }
@@ -106,5 +107,6 @@ public class AccountTriggerHandler {
         
         
     }
+    
  
 }
